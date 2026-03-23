@@ -9,6 +9,7 @@ import org.turnbox.app.data.datasource.HysteriaConfigRepositoryImpl
 import org.turnbox.app.data.importer.AndroidConfigImporter
 import org.turnbox.app.ui.activities.AndroidMainScreen
 import org.turnbox.app.ui.activities.MainActivityViewModel
+import org.turnbox.app.ui.theme.AppTheme
 import org.turnbox.app.vpn.AndroidVpnManager
 
 class AppActivity : ComponentActivity() {
@@ -28,7 +29,7 @@ class AppActivity : ComponentActivity() {
 
         enableEdgeToEdge()
         setContent {
-            AndroidMainScreen(viewModel = viewModel)
+            AppTheme({ AndroidMainScreen(viewModel = viewModel) })
         }
     }
 }

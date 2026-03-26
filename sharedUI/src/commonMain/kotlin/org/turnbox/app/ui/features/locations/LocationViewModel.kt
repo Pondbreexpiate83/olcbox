@@ -6,6 +6,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.turnbox.app.data.model.HysteriaConfig
@@ -19,13 +21,13 @@ data class LocationItem(
 
 sealed class PingsState {
     object Idle : PingsState()
-    data class Loading(val lastPings: Map<String, Int>? = null) : PingsState()
-    data class Success(val pings: Map<String, Int>) : PingsState()
+    data class Loading(val lastPings: Map<String, Int?>? = null) : PingsState()
+    data class Success(val pings: Map<String, Int?>) : PingsState()
     data class Error(val message: String) : PingsState()
 }
 
 class LocationViewModel(
-    private val configRepo: HysteriaConfigRepository
+    private val configRepo: HysteriaConfigRepository,
 ) : ViewModel() {
 
     var locations = mutableStateListOf<LocationItem>()
@@ -40,6 +42,9 @@ class LocationViewModel(
     var editingConfig by mutableStateOf(HysteriaConfig())
     var editingName by mutableStateOf("")
     var editingId by mutableStateOf<String?>(null)
+
+    var isSaving by mutableStateOf(false)
+        private set
 
     var nameError by mutableStateOf<String?>(null)
         private set
@@ -87,14 +92,20 @@ class LocationViewModel(
         }
     }
 
-    fun refreshPings() {
+    fun refreshPings(performPing: suspend (HysteriaConfig) -> Long?) {
         val previousPings = (pingsState as? PingsState.Success)?.pings
         viewModelScope.launch {
             pingsState = PingsState.Loading(lastPings = previousPings)
             try {
-                delay(1000)
-                val fakePings = locations.associate { it.id to (10..90).random() }
-                pingsState = PingsState.Success(fakePings)
+                val results = locations.map { location ->
+                    async {
+                        val config = location.config ?: return@async location.id to null
+                        val result = performPing(config)
+                        location.id to result?.toInt()
+                    }
+                }.awaitAll().toMap()
+
+                pingsState = PingsState.Success(results)
             } catch (e: Exception) {
                 pingsState = PingsState.Error(e.message ?: "Error")
             }
@@ -104,6 +115,7 @@ class LocationViewModel(
     fun startEditing(id: String?) {
         nameError = null
         serverError = null
+        isSaving = false
 
         if (id == null) {
             editingId = null
@@ -167,15 +179,18 @@ class LocationViewModel(
         validateName(editingName)
         validateServer(editingConfig.server)
 
-        if (!isFormValid) return
+        if (!isFormValid || isSaving) return
 
         viewModelScope.launch {
+            isSaving = true
             val id = editingId ?: "custom_${(100..999).random()}"
             val finalConfig = editingConfig.copy(name = editingName)
             configRepo.saveHysteriaConfig(finalConfig, id)
             configRepo.setSelectedHysteriaId(id)
             loadLocations()
+            delay(600)
             onComplete()
+            isSaving = false
         }
     }
 

@@ -24,34 +24,18 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import androidx.lifecycle.viewmodel.compose.viewModel
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-
-class PingViewModel : ViewModel() {
-    var uiState by mutableStateOf<PingState>(PingState.Idle)
-        private set
-
-    fun performPing() {
-        viewModelScope.launch {
-            uiState = PingState.Loading
-            try {
-                delay(2000)
-                uiState = PingState.Success(latency = 87)
-            } catch (e: Exception) {
-                uiState = PingState.Error(e.message ?: "Unknown error")
-            }
-        }
-    }
-}
+import org.turnbox.app.data.model.HysteriaConfig
+import org.turnbox.app.ui.features.home.HomeScreenViewModel
 
 sealed class PingState {
     object Idle : PingState()
@@ -63,45 +47,46 @@ sealed class PingState {
 @Composable
 fun PingButton(
     modifier: Modifier = Modifier,
-    viewModel: PingViewModel = viewModel()
+    homeViewModel: HomeScreenViewModel,
+    configGetter: () -> HysteriaConfig? = { null }
 ) {
-    val state = viewModel.uiState
+    var pingState by remember { mutableStateOf<PingState>(PingState.Idle) }
 
-    val descriptionText = when (state) {
-        is PingState.Error -> "Error: ${state.message}"
+    val descriptionText = when (pingState) {
+        is PingState.Error -> "Offline"
         is PingState.Loading -> "Checking..."
-        is PingState.Success -> "Success: Ping ${state.latency}ms"
+        is PingState.Success -> "Connected ${(pingState as PingState.Success).latency}ms"
         else -> "Click To Verify Reachability"
     }
 
     val stateIcon: @Composable () -> Unit = {
-        when (state) {
+        when (pingState) {
             is PingState.Error -> Icon(
                 imageVector = Icons.Rounded.PriorityHigh,
                 contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurface,
+                tint = MaterialTheme.colorScheme.error,
                 modifier = Modifier.size(24.dp)
             )
 
             is PingState.Loading -> {
                 CircularProgressIndicator(
-                    modifier = Modifier.size(24.dp),
-                    color = MaterialTheme.colorScheme.onSurface,
-                    strokeWidth = 2.5.dp
+                    modifier = Modifier.size(22.dp),
+                    color = MaterialTheme.colorScheme.primary,
+                    strokeWidth = 2.dp
                 )
             }
 
             is PingState.Success -> Icon(
                 imageVector = Icons.Rounded.Check,
                 contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                tint = Color(0xFF4CAF50),
                 modifier = Modifier.size(24.dp)
             )
 
             else -> Icon(
                 imageVector = Icons.Outlined.Bolt,
                 contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                tint = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.size(24.dp)
             )
         }
@@ -110,23 +95,39 @@ fun PingButton(
     Surface(
         modifier = modifier
             .fillMaxWidth()
-            .clickable { viewModel.performPing() }
+            .clickable(enabled = pingState !is PingState.Loading) {
+                homeViewModel.viewModelScope.launch {
+                    pingState = PingState.Loading
+                    val config = configGetter()
+                    val result = if (config != null) {
+                        homeViewModel.checkConnectionFor(config)
+                    } else {
+                        homeViewModel.performPing()
+                    }
+
+                    pingState = if (result != null) {
+                        PingState.Success(result)
+                    } else {
+                        PingState.Error("Offline")
+                    }
+                }
+            }
             .border(
                 width = 1.dp,
                 color = MaterialTheme.colorScheme.outlineVariant,
                 shape = RoundedCornerShape(16.dp)
             ),
         shape = RoundedCornerShape(16.dp),
-        color = if (state is PingState.Error) {
-            MaterialTheme.colorScheme.errorContainer
+        color = if (pingState is PingState.Error) {
+            MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.3f)
         } else {
-            MaterialTheme.colorScheme.surfaceContainer
+            MaterialTheme.colorScheme.surfaceContainerLow
         },
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 24.dp, vertical = 20.dp),
+                .padding(horizontal = 20.dp, vertical = 16.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(16.dp)
         ) {
@@ -134,26 +135,21 @@ fun PingButton(
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = "Connectivity Check",
-                    fontSize = 22.sp,
+                    fontSize = 18.sp,
                     fontWeight = FontWeight.Medium,
                     color = MaterialTheme.colorScheme.onSurface
                 )
                 Text(
                     text = descriptionText,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Normal,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    fontSize = 13.sp,
+                    color = if (pingState is PingState.Error) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
 
             Surface(
-                modifier = Modifier.size(48.dp),
+                modifier = Modifier.size(40.dp),
                 shape = CircleShape,
-                color = if (state is PingState.Error) {
-                    MaterialTheme.colorScheme.onTertiary
-                } else {
-                    MaterialTheme.colorScheme.secondaryContainer
-                }
+                color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f)
             ) {
                 Box(
                     modifier = Modifier.fillMaxSize(),

@@ -415,10 +415,10 @@ class Hysteria2VpnService : VpnService() {
                 BufferedReader(InputStreamReader(turnProcess?.inputStream)).use { reader ->
                     var line: String?
                     while (reader.readLine().also { line = it } != null) {
-                        if (line!!.contains("Established") || line!!.contains("relayed-address")) {
+                        if (line!!.contains("Established") || line.contains("relayed-address")) {
                             addLog("✅ TURN OK")
                         }
-                        Log.v("vk-turn", line!!)
+                        Log.v("vk-turn", line)
                     }
                 }
             } catch (_: Exception) {
@@ -437,14 +437,13 @@ class Hysteria2VpnService : VpnService() {
                 BufferedReader(InputStreamReader(hysteriaProcess?.inputStream)).use { reader ->
                     var line: String?
                     while (reader.readLine().also { line = it } != null) {
-                        // НАДЕЖНАЯ ПРОВЕРКА готовности:
-                        if (line!!.contains("SOCKS5 server listening") || line!!.contains("HTTP proxy server listening")) {
+                        if (line!!.contains("SOCKS5 server listening") || line.contains("HTTP proxy server listening")) {
                             isHysteriaSocksReady = true
                         }
-                        if (line!!.contains("connected")) {
+                        if (line.contains("connected")) {
                             addLog("✅ HY2 Connected")
                         }
-                        Log.v("hysteria", line!!)
+                        Log.v("hysteria", line)
                     }
                 }
             } catch (_: Exception) {

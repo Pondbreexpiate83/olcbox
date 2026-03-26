@@ -37,6 +37,7 @@ fun LocationRow(
     isSelected: Boolean,
     isLoading: Boolean,
     pingMs: Int?,
+    isError: Boolean = false,
     settingsEnabled: Boolean = true,
     onSettingsClick: () -> Unit = {},
     onClick: () -> Unit
@@ -101,7 +102,17 @@ fun LocationRow(
                     Text(
                         text = "$pingMs ms",
                         fontSize = 14.sp,
-                        fontWeight = FontWeight.Medium
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                isError -> {
+                    Text(
+                        text = "Offline",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.error
                     )
                 }
             }

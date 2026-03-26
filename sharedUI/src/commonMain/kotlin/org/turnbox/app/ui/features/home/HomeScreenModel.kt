@@ -75,6 +75,18 @@ class HomeScreenViewModel(
         }
     }
 
+    suspend fun performPing(): Long? {
+        return vpnManager.ping(_state.value.turnData, _state.value.configData)
+    }
+
+    suspend fun performPingFor(config: HysteriaConfig): Long? {
+        return vpnManager.ping(_state.value.turnData, config)
+    }
+
+    suspend fun checkConnectionFor(config: HysteriaConfig): Long? {
+        return vpnManager.checkConnection(_state.value.turnData, config)
+    }
+
     fun startVpnContinuation() {
         _state.update { it.copy(isVpnLoading = true) }
     }

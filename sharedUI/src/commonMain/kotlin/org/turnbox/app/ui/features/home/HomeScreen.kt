@@ -31,6 +31,7 @@ import org.turnbox.app.ui.features.home.components.ServerSelectionScreen
 import org.turnbox.app.ui.features.locations.LocationSelectionSheet
 import org.turnbox.app.ui.features.locations.LocationSettingsSheet
 import org.turnbox.app.ui.features.locations.LocationViewModel
+import org.turnbox.app.ui.features.locations.PingsState
 import org.turnbox.app.ui.features.turn.CustomTurnSheet
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -52,6 +53,14 @@ fun HomeScreen(
     val state by viewModel.state.collectAsState()
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
+
+    val pingsState = locationViewModel.pingsState
+    val currentPingMs = (pingsState as? PingsState.Success)?.pings?.get(state.selectedLocation?.id)
+        ?: (pingsState as? PingsState.Loading)?.lastPings?.get(state.selectedLocation?.id)
+
+    val isCurrentOffline = pingsState is PingsState.Success &&
+            state.selectedLocation != null &&
+            pingsState.pings[state.selectedLocation?.id] == null
 
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
@@ -91,9 +100,16 @@ fun HomeScreen(
                 modifier = Modifier.height(32.dp)
             )
             LocationSelectorScreen(
-                onRefreshClick = {},
+                onRefreshClick = {
+                    scope.launch {
+                        locationViewModel.refreshPings { viewModel.checkConnectionFor(it) }
+                    }
+                },
                 onSelectorClick = { isLocationSheetOpen = true },
                 item = state.selectedLocation,
+                pingMs = currentPingMs,
+                isError = isCurrentOffline,
+                isLoading = pingsState is PingsState.Loading,
                 onAddLocationClick = {
                     locationViewModel.startEditing(null)
                     isLocationSettingsOpen = true
@@ -118,7 +134,8 @@ fun HomeScreen(
                         isLocationSheetOpen = false
                         viewModel.loadCurrentConfig()
                     },
-                    viewModel = locationViewModel
+                    viewModel = locationViewModel,
+                    homeViewModel = viewModel
                 )
             }
 
@@ -128,7 +145,8 @@ fun HomeScreen(
                         isLocationSettingsOpen = false
                         viewModel.loadCurrentConfig()
                     },
-                    viewModel = locationViewModel
+                    viewModel = locationViewModel,
+                    homeViewModel = viewModel
                 )
             }
 

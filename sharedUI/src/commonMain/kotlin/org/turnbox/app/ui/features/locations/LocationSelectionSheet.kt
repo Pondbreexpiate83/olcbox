@@ -27,18 +27,20 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
+import org.turnbox.app.ui.features.home.HomeScreenViewModel
 import org.turnbox.app.ui.features.locations.components.LocationRow
 import org.turnbox.app.ui.features.locations.components.RefreshButton
+import androidx.compose.ui.text.font.FontWeight
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LocationSelectionSheet(
     onDismiss: () -> Unit,
-    viewModel: LocationViewModel
+    viewModel: LocationViewModel,
+    homeViewModel: HomeScreenViewModel
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var isSettingsOpen by remember { mutableStateOf(false) }
@@ -62,6 +64,7 @@ fun LocationSelectionSheet(
     ) {
         LocationSheetContent(
             viewModel = viewModel,
+            homeViewModel = homeViewModel,
             onAddClick = {
                 viewModel.startEditing(null)
                 isSettingsOpen = true
@@ -82,7 +85,8 @@ fun LocationSelectionSheet(
             onDismiss = {
                 isSettingsOpen = false
             },
-            viewModel = viewModel
+            viewModel = viewModel,
+            homeViewModel = homeViewModel
         )
     }
 }
@@ -90,6 +94,7 @@ fun LocationSelectionSheet(
 @Composable
 fun LocationSheetContent(
     viewModel: LocationViewModel,
+    homeViewModel: HomeScreenViewModel,
     onAddClick: () -> Unit,
     onSettingsClick: (String) -> Unit,
     onLocationSelected: (String) -> Unit
@@ -115,7 +120,7 @@ fun LocationSheetContent(
 
             RefreshButton(
                 state = state,
-                onClick = { viewModel.refreshPings() },
+                onClick = { viewModel.refreshPings { homeViewModel.checkConnectionFor(it) } },
                 tint = MaterialTheme.colorScheme.primary
             )
         }
@@ -126,11 +131,14 @@ fun LocationSheetContent(
             viewModel.locations.forEach { location ->
                 val pingMs = (state as? PingsState.Success)?.pings?.get(location.id)
                 val isCurrentlyLoading = state is PingsState.Loading
+                val lastPingResult = (state as? PingsState.Success)?.pings?.get(location.id)
+                val isOffline = state is PingsState.Success && lastPingResult == null
 
                 LocationRow(
                     location = location,
                     isSelected = viewModel.selectedLocationId == location.id,
                     pingMs = pingMs,
+                    isError = isOffline,
                     onSettingsClick = { onSettingsClick(location.id) },
                     onClick = { onLocationSelected(location.id) },
                     isLoading = isCurrentlyLoading

@@ -1,5 +1,6 @@
 package org.turnbox.app.ui.features.locations
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -20,6 +21,7 @@ import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material3.BottomSheetDefaults
 import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -33,6 +35,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -41,12 +44,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
 import org.turnbox.app.ui.components.PingButton
+import org.turnbox.app.ui.features.home.HomeScreenViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LocationSettingsSheet(
     onDismiss: () -> Unit,
-    viewModel: LocationViewModel
+    viewModel: LocationViewModel,
+    homeViewModel: HomeScreenViewModel
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val scope = rememberCoroutineScope()
@@ -65,6 +70,7 @@ fun LocationSettingsSheet(
     ) {
         LocationSettingsContent(
             viewModel = viewModel,
+            homeViewModel = homeViewModel,
             onDismiss = { closeSheet() }
         )
     }
@@ -73,14 +79,12 @@ fun LocationSettingsSheet(
 @Composable
 fun LocationSettingsContent(
     viewModel: LocationViewModel,
+    homeViewModel: HomeScreenViewModel,
     onDismiss: () -> Unit
 ) {
     val config = viewModel.editingConfig
     val name = viewModel.editingName
-
-    val nameError = viewModel.nameError
-    val serverError = viewModel.serverError
-    val isFormValid = viewModel.isFormValid
+    val isSaving = viewModel.isSaving
 
     val focusManager = LocalFocusManager.current
     val scrollState = rememberScrollState()
@@ -105,22 +109,11 @@ fun LocationSettingsContent(
             onValueChange = { viewModel.onNameChanged(it) },
             label = { Text("Name") },
             placeholder = { Text("Helsinki, FI") },
-            isError = nameError != null,
-            supportingText = {
-                if (nameError != null) {
-                    Text(text = nameError, color = MaterialTheme.colorScheme.error)
-                }
-            },
+            enabled = !isSaving,
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
             modifier = Modifier.fillMaxWidth(),
             trailingIcon = {
-                if (nameError != null) {
-                    Icon(
-                        Icons.Default.Close,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.error
-                    )
-                } else if (name.isNotEmpty()) {
+                if (name.isNotEmpty() && !isSaving) {
                     IconButton(onClick = { viewModel.onNameChanged("") }) {
                         Icon(Icons.Default.Close, contentDescription = "Clear")
                     }
@@ -135,22 +128,11 @@ fun LocationSettingsContent(
             onValueChange = { viewModel.onServerChanged(it) },
             label = { Text("TURN Client Address") },
             placeholder = { Text("95.85.240.113:56000") },
-            isError = serverError != null,
-            supportingText = {
-                if (serverError != null) {
-                    Text(text = serverError, color = MaterialTheme.colorScheme.error)
-                }
-            },
+            enabled = !isSaving,
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
             modifier = Modifier.fillMaxWidth(),
             trailingIcon = {
-                if (serverError != null) {
-                    Icon(
-                        Icons.Default.Close,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.error
-                    )
-                } else if (config.server.isNotEmpty()) {
+                if (config.server.isNotEmpty() && !isSaving) {
                     IconButton(onClick = { viewModel.onServerChanged("") }) {
                         Icon(Icons.Default.Close, contentDescription = "Clear")
                     }
@@ -167,9 +149,10 @@ fun LocationSettingsContent(
                 label = { Text("SNI") },
                 placeholder = { Text("localhost") },
                 modifier = Modifier.weight(1f),
+                enabled = !isSaving,
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
                 trailingIcon = {
-                    if (config.sni.isNotEmpty()) {
+                    if (config.sni.isNotEmpty() && !isSaving) {
                         IconButton(onClick = { viewModel.onSniChanged("") }) {
                             Icon(Icons.Default.Close, contentDescription = "Clear")
                         }
@@ -184,6 +167,7 @@ fun LocationSettingsContent(
                 onValueChange = { viewModel.onPasswordChanged(it) },
                 label = { Text("Password") },
                 maxLines = 1,
+                enabled = !isSaving,
                 visualTransformation = PasswordVisualTransformation(),
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
                 keyboardActions = KeyboardActions(
@@ -193,7 +177,7 @@ fun LocationSettingsContent(
                 ),
                 modifier = Modifier.weight(1f),
                 trailingIcon = {
-                    if (config.password.isNotEmpty()) {
+                    if (config.password.isNotEmpty() && !isSaving) {
                         IconButton(onClick = { viewModel.onPasswordChanged("") }) {
                             Icon(Icons.Default.Close, contentDescription = "Clear")
                         }
@@ -204,7 +188,10 @@ fun LocationSettingsContent(
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        PingButton()
+        PingButton(
+            homeViewModel = homeViewModel,
+            configGetter = { viewModel.editingConfig }
+        )
 
         Spacer(modifier = Modifier.height(32.dp))
 
@@ -218,8 +205,9 @@ fun LocationSettingsContent(
                         ?: onDismiss()
                 },
                 modifier = Modifier.size(56.dp),
+                enabled = !isSaving,
                 shape = CircleShape,
-                border = androidx.compose.foundation.BorderStroke(
+                border = BorderStroke(
                     1.dp,
                     MaterialTheme.colorScheme.outlineVariant
                 )
@@ -233,15 +221,23 @@ fun LocationSettingsContent(
                 onClick = {
                     viewModel.saveEditing { onDismiss() }
                 },
-                enabled = isFormValid,
                 modifier = Modifier
                     .weight(1f)
                     .height(56.dp),
+                enabled = !isSaving,
                 shape = RoundedCornerShape(28.dp)
             ) {
-                Icon(Icons.Rounded.Check, contentDescription = null)
-                Spacer(Modifier.width(8.dp))
-                Text("Save Location Settings", fontSize = 16.sp, fontWeight = FontWeight.Medium)
+                if (isSaving) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(24.dp),
+                        color = Color.White,
+                        strokeWidth = 2.dp
+                    )
+                } else {
+                    Icon(Icons.Rounded.Check, contentDescription = null)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Save Location Settings", fontSize = 16.sp, fontWeight = FontWeight.Medium)
+                }
             }
         }
     }

@@ -34,7 +34,10 @@ fun LocationSelectorScreen(
     onRefreshClick: () -> Unit,
     onSelectorClick: () -> Unit,
     onAddLocationClick: () -> Unit,
-    item: LocationItem?
+    item: LocationItem?,
+    pingMs: Int? = null,
+    isError: Boolean = false,
+    isLoading: Boolean = false
 ) {
     Column(modifier = modifier.fillMaxWidth()) {
         Row(
@@ -51,7 +54,7 @@ fun LocationSelectorScreen(
                 Spacer(Modifier.width(8.dp))
                 Text("LOCATION", fontWeight = FontWeight.Medium, fontSize = 14.sp)
             }
-            TextButton(onClick = onRefreshClick) {
+            TextButton(onClick = onRefreshClick, enabled = !isLoading) {
                 Icon(
                     Icons.Rounded.Refresh,
                     contentDescription = null,
@@ -66,10 +69,11 @@ fun LocationSelectorScreen(
             LocationRow(
                 item,
                 isSelected = true,
-                isLoading = false,
+                isLoading = isLoading,
+                isError = isError,
                 settingsEnabled = false,
                 onClick = onSelectorClick,
-                pingMs = 66
+                pingMs = pingMs
             )
         } else {
             Surface(

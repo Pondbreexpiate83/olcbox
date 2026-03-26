@@ -1,5 +1,6 @@
 package org.turnbox.app.ui.features.turn
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -187,7 +188,9 @@ fun CustomTurnContent(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        PingButton()
+        PingButton(
+            homeViewModel = viewModel
+        )
 
         Spacer(modifier = Modifier.height(32.dp))
 
@@ -200,7 +203,7 @@ fun CustomTurnContent(
                     onClick = { /* Handle delete if needed */ },
                     modifier = Modifier.size(56.dp),
                     shape = CircleShape,
-                    border = androidx.compose.foundation.BorderStroke(
+                    border = BorderStroke(
                         1.dp,
                         MaterialTheme.colorScheme.outlineVariant
                     )

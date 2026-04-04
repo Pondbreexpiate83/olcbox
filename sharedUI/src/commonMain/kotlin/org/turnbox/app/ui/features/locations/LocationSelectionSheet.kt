@@ -23,17 +23,15 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import kotlinx.coroutines.launch
 import org.turnbox.app.ui.features.home.HomeScreenViewModel
 import org.turnbox.app.ui.features.locations.components.LocationRow
 import org.turnbox.app.ui.features.locations.components.RefreshButton
-import androidx.compose.ui.text.font.FontWeight
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -44,15 +42,6 @@ fun LocationSelectionSheet(
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var isSettingsOpen by remember { mutableStateOf(false) }
-
-    val scope = rememberCoroutineScope()
-
-    val closeSheet = {
-        scope.launch {
-            sheetState.hide()
-            onDismiss()
-        }
-    }
 
     LaunchedEffect(Unit) {
         viewModel.loadLocations()
@@ -75,7 +64,6 @@ fun LocationSelectionSheet(
             },
             onLocationSelected = { id ->
                 viewModel.selectLocation(id)
-                closeSheet()
             }
         )
     }

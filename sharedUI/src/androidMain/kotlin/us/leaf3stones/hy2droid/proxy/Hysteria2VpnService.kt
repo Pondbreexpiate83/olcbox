@@ -60,6 +60,9 @@ class Hysteria2VpnService : VpnService() {
     private var isRunning = false
 
     @Volatile
+    private var isTurnReady = false
+
+    @Volatile
     private var isHysteriaSocksReady = false
 
     private var wakeLock: PowerManager.WakeLock? = null
@@ -110,7 +113,6 @@ class Hysteria2VpnService : VpnService() {
                 currentNetwork = network
                 setUnderlyingNetworks(arrayOf(network))
                 try {
-                    // Это ломает java.net.Socket() для 127.0.0.1, но мы теперь читаем логи!
                     connectivityManager.bindProcessToNetwork(network)
                     addLog("✅ Bound to $netName")
                 } catch (e: Exception) {
@@ -208,9 +210,7 @@ class Hysteria2VpnService : VpnService() {
         val stopIntent =
             Intent(this, Hysteria2VpnService::class.java).apply { action = ACTION_STOP_VPN }
         val stopPendingIntent = PendingIntent.getService(
-            this,
-            0,
-            stopIntent,
+            this, 0, stopIntent,
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
 
@@ -226,7 +226,8 @@ class Hysteria2VpnService : VpnService() {
 
         ServiceCompat.startForeground(
             this, 100, notif,
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE else 0
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE else 0
         )
     }
 
@@ -236,9 +237,7 @@ class Hysteria2VpnService : VpnService() {
         val stopIntent =
             Intent(this, Hysteria2VpnService::class.java).apply { action = ACTION_STOP_VPN }
         val stopPendingIntent = PendingIntent.getService(
-            this,
-            0,
-            stopIntent,
+            this, 0, stopIntent,
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
 
@@ -253,6 +252,47 @@ class Hysteria2VpnService : VpnService() {
             .build()
 
         notificationManager.notify(100, notif)
+    }
+
+    /**
+     * Когда TURN включён, Hysteria должна подключаться не к реальному серверу,
+     * а к локальному TURN-листенеру (например 127.0.0.1:9000).
+     * Создаём временный конфиг с подменённым полем server:.
+     */
+    private fun createPatchedHysteriaConfig(originalPath: String, turnListenAddr: String): String {
+        val original = File(originalPath).readText()
+        val serverRegex = Regex("""(?m)^\s*server\s*:\s*([^:\s]+)""")
+        val originalHost = serverRegex.find(original)?.groupValues?.get(1) ?: ""
+
+        // Подменяем IP на локальный TURN
+        var patched = original.replace(
+            Regex("""(?m)^(\s*server\s*:\s*)(.+)$""")
+        ) { mr -> "${mr.groupValues[1]}$turnListenAddr" }
+
+        // Прокидываем SNI для успешного рукопожатия
+        if (originalHost.isNotEmpty() && !original.contains("sni:")) {
+            patched = if (patched.contains("tls:")) {
+                patched.replaceFirst("tls:", "tls:\n  sni: $originalHost")
+            } else {
+                patched + "\ntls:\n  sni: $originalHost\n"
+            }
+        }
+
+        // Очищаем старые настройки QUIC (если есть) и ставим агрессивные буферы под 100 Мбит/с
+        patched = patched.replace(Regex("""(?m)^quic:[\s\S]*?(?=\n\w|$)"""), "")
+        patched += """
+            
+        quic:
+          initStreamReceiveWindow: 16777216
+          maxStreamReceiveWindow: 67108864
+          initConnReceiveWindow: 33554432
+          maxConnReceiveWindow: 134217728
+        """.trimIndent()
+
+        val patchedFile = File(cacheDir, "hysteria_turn_patched.yaml")
+        patchedFile.writeText(patched)
+        addLog("📝 Hysteria config patched for MAX SPEED: server → $turnListenAddr")
+        return patchedFile.absolutePath
     }
 
     private fun startVpnChecked(
@@ -289,16 +329,41 @@ class Hysteria2VpnService : VpnService() {
                 val hysteriaConfig = repo.loadHysteriaConfig(selectedHysteriaId)
                 val turnConfig = baseTurnConfig.copy(peer = hysteriaConfig.server)
 
+                // Определяем путь к конфигу Hysteria:
+                // если TURN включён — подменяем server: на локальный адрес TURN.
+                val effectiveHysteriaConfigPath = if (turnConfig.enabled) {
+                    createPatchedHysteriaConfig(configPath, turnConfig.listen)
+                } else {
+                    configPath
+                }
+
                 if (turnConfig.enabled) {
+                    isTurnReady = false
                     startTurnInternal(turnConfig)
-                    delay(if (isMigration) 1500L else 3000L)
+                    addLog("⏳ Waiting for TURN/DTLS tunnel...")
+                    while (!isTurnReady) {
+                        if (turnProcess?.isProcessAlive() == false) {
+                            addLog("❌ TURN process crashed during startup!")
+                            break
+                        }
+                        delay(500)
+                    }
+
+                    if (!isTurnReady) {
+                        addLog("❌ TURN/DTLS connection timed out!")
+                        updateNotification("Retrying connection...")
+                        scope.launch {
+                            delay(3000)
+                            startVpnChecked(true, configPath, true)
+                        }
+                        return@withLock
+                    }
                 }
 
                 isHysteriaSocksReady = false
-                startHysteriaInternal(configPath)
+                startHysteriaInternal(effectiveHysteriaConfigPath)
                 addLog("⏳ Waiting for Hysteria SOCKS5...")
 
-                // Надежное ожидание готовности SOCKS5 через логи (таймаут 25 сек)
                 var waited = 0
                 while (!isHysteriaSocksReady && waited < 25000) {
                     if (hysteriaProcess?.isProcessAlive() == false) {
@@ -399,13 +464,18 @@ class Hysteria2VpnService : VpnService() {
         addLog("🚀 Starting turn tunnel with peer: ${config.peer}")
         val cmd = mutableListOf<String>().apply {
             add(File(applicationInfo.nativeLibraryDir, "libvkturn.so").absolutePath)
-            add("-peer"); add(config.peer)
+            add("-cache-dir")
+            add(cacheDir.absolutePath)
+            add("-peer")
+            add(config.peer)
             if (config.link.isNotBlank()) {
                 add(if (config.link.contains("yandex")) "-yandex-link" else "-vk-link")
                 add(config.link)
             }
-            add("-listen"); add(config.listen)
-            add("-n"); add(config.threads.toString())
+            add("-listen")
+            add(config.listen)
+            add("-n")
+            add(config.threads.toString())
             if (config.udp) add("-udp")
             if (config.noDtls) add("-no-dtls")
         }
@@ -415,10 +485,15 @@ class Hysteria2VpnService : VpnService() {
                 BufferedReader(InputStreamReader(turnProcess?.inputStream)).use { reader ->
                     var line: String?
                     while (reader.readLine().also { line = it } != null) {
-                        if (line!!.contains("Established") || line.contains("relayed-address")) {
-                            addLog("✅ TURN OK")
+                        if (line!!.contains("Established DTLS") ||
+                            (config.noDtls && line!!.contains("relayed-address"))
+                        ) {
+                            if (!isTurnReady) {
+                                addLog("✅ TURN OK")
+                                isTurnReady = true
+                            }
                         }
-                        Log.v("vk-turn", line)
+                        Log.v("vk-turn", line!!)
                     }
                 }
             } catch (_: Exception) {
@@ -437,13 +512,15 @@ class Hysteria2VpnService : VpnService() {
                 BufferedReader(InputStreamReader(hysteriaProcess?.inputStream)).use { reader ->
                     var line: String?
                     while (reader.readLine().also { line = it } != null) {
-                        if (line!!.contains("SOCKS5 server listening") || line.contains("HTTP proxy server listening")) {
+                        if (line!!.contains("SOCKS5 server listening") ||
+                            line.contains("HTTP proxy server listening")
+                        ) {
                             isHysteriaSocksReady = true
                         }
-                        if (line.contains("connected")) {
+                        if (line!!.contains("connected")) {
                             addLog("✅ HY2 Connected")
                         }
-                        Log.v("hysteria", line)
+                        Log.v("hysteria", line!!)
                     }
                 }
             } catch (_: Exception) {
@@ -487,6 +564,9 @@ class Hysteria2VpnService : VpnService() {
         turnProcess = null
         turnLoggingThread?.interrupt()
         turnLoggingThread = null
+
+        isTurnReady = false
+        isHysteriaSocksReady = false
     }
 
     private fun cleanup() {

@@ -27,6 +27,8 @@ kotlin {
         }
     }
 
+    macosX64()
+    macosArm64()
     iosArm64()
     iosSimulatorArm64()
 
@@ -78,6 +80,11 @@ kotlin {
         }
 
         iosMain.dependencies {
+            implementation(libs.ktor.client.darwin)
+            implementation(libs.kstore.file)
+        }
+
+        macosMain.dependencies {
             implementation(libs.ktor.client.darwin)
             implementation(libs.kstore.file)
         }

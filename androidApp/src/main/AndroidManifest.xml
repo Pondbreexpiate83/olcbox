@@ -15,7 +15,8 @@
         android:label="Turnbox"
         android:theme="@android:style/Theme.Material.NoActionBar"
         android:extractNativeLibs="true"
-        tools:replace="android:extractNativeLibs">
+        tools:replace="android:extractNativeLibs"
+        android:usesCleartextTraffic="true">
 
         <activity
             android:name=".AppActivity"
@@ -28,6 +29,12 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <activity
+            android:name="us.leaf3stones.hy2droid.proxy.CaptchaActivity"
+            android:theme="@android:style/Theme.DeviceDefault.Light.Dialog"
+            android:excludeFromRecents="true"
+            android:exported="false" />
 
         <service
             android:name="us.leaf3stones.hy2droid.proxy.Hysteria2VpnService"

@@ -14,7 +14,7 @@ fun getAppTypography(): Typography {
     )
 
     val defaultTypography = Typography()
-    
+
     return Typography(
         displayLarge = defaultTypography.displayLarge.copy(fontFamily = googleSans),
         displayMedium = defaultTypography.displayMedium.copy(fontFamily = googleSans),

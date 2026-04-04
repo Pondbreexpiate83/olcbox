@@ -100,15 +100,15 @@ class HysteriaConfigRepositoryImpl(
                         noDtls = wrapper.turn?.noDtls ?: false,
                         listen = wrapper.turn?.listen ?: "127.0.0.1:9000"
                     )
-                    
+
                     val turnType = wrapper.turn?.type ?: "custom"
-                    
-                    val baseId = if (hConfig.name.isNotBlank()) hConfig.name else hConfig.server.take(10)
+
+                    val baseId = hConfig.name.ifBlank { hConfig.server.take(10) }
                     val newId = "Imported_$baseId"
-                    
+
                     dataSource.saveHysteriaConfig(hConfig, newId)
                     dataSource.setSelectedHysteriaId(newId)
-                    
+
                     dataSource.saveTurnConfig(tConfig, turnType)
                     dataSource.setSelectedTurnType(turnType)
                     return

@@ -37,14 +37,14 @@ jobs:
         with:
           go-version: 'stable'
 
-      - name: Build EXE
+      - name: Build Windows EXE
         shell: pwsh
         working-directory: olcbox
         run: |
           $env:OLCRTC_REPO="${{ github.workspace }}\olcrtc"
           .\gradlew.bat :desktopApp:packageReleaseExe --stacktrace
 
-      - name: Prepare release asset
+      - name: Prepare asset
         shell: pwsh
         working-directory: olcbox
         run: |
@@ -52,11 +52,104 @@ jobs:
           $exe = Get-ChildItem "desktopApp/build/compose/binaries/main-release/exe/*.exe" | Select-Object -First 1
           Copy-Item $exe.FullName "dist/Turnbox-windows-amd64.exe"
 
-      - name: Upload workflow artifact
+      - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: Turnbox-windows-amd64-exe
           path: olcbox/dist/Turnbox-windows-amd64.exe
+
+  build-macos:
+    runs-on: macos-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout olcbox
+        uses: actions/checkout@v4
+        with:
+          path: olcbox
+
+      - name: Clone olcrtc fork
+        run: |
+          git clone https://codeberg.org/gothex/olcrtc-for-olcbox.git olcrtc
+
+      - name: Setup JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: 'stable'
+
+      - name: Build macOS DMG
+        working-directory: olcbox
+        run: |
+          export OLCRTC_REPO="${{ github.workspace }}/olcrtc"
+          ./gradlew :desktopApp:packageReleaseDmg --stacktrace
+
+      - name: Prepare asset
+        working-directory: olcbox
+        run: |
+          mkdir -p dist
+          cp desktopApp/build/compose/binaries/main-release/dmg/*.dmg dist/Turnbox-macos.dmg
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Turnbox-macos-dmg
+          path: olcbox/dist/Turnbox-macos.dmg
+
+  build-linux:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout olcbox
+        uses: actions/checkout@v4
+        with:
+          path: olcbox
+
+      - name: Clone olcrtc fork
+        run: |
+          git clone https://codeberg.org/gothex/olcrtc-for-olcbox.git olcrtc
+
+      - name: Install Linux packaging deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y fakeroot dpkg-dev rpm
+
+      - name: Setup JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: 'stable'
+
+      - name: Build Linux DEB
+        working-directory: olcbox
+        run: |
+          export OLCRTC_REPO="${{ github.workspace }}/olcrtc"
+          ./gradlew :desktopApp:packageReleaseDeb --stacktrace
+
+      - name: Prepare asset
+        working-directory: olcbox
+        run: |
+          mkdir -p dist
+          cp desktopApp/build/compose/binaries/main-release/deb/*.deb dist/Turnbox-linux-amd64.deb
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Turnbox-linux-amd64-deb
+          path: olcbox/dist/Turnbox-linux-amd64.deb
 
   build-android:
     runs-on: ubuntu-latest
@@ -136,7 +229,7 @@ jobs:
           EOF
           else
             echo "Android production APK requires signing secrets:"
-            echo "Configure the private Android signing secrets in repository settings."
+            echo "ANDROID_RELEASE_KEYSTORE_BASE64, ANDROID_RELEASE_STORE_PASSWORD, ANDROID_RELEASE_KEY_ALIAS, ANDROID_RELEASE_KEY_PASSWORD"
             exit 1
           fi
 
@@ -151,11 +244,11 @@ jobs:
           mkdir -p dist
           cp androidApp/build/outputs/apk/release/*.apk dist/Turnbox-android-release.apk
 
-      - name: Upload workflow artifact
+      - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: Turnbox-android-apk
-          path: olcbox/dist/*.apk
+          path: olcbox/dist/Turnbox-android-release.apk
 
   publish-nightly:
     runs-on: ubuntu-latest
@@ -163,6 +256,8 @@ jobs:
       contents: write
     needs:
       - build-windows
+      - build-macos
+      - build-linux
       - build-android
 
     steps:
@@ -195,6 +290,6 @@ jobs:
           else
             gh release create nightly "${assets[@]}" \
               --title "Nightly Turnbox builds" \
-              --notes "Latest Windows amd64 and Android builds from main." \
+              --notes "Latest desktop and Android builds from main." \
               --prerelease
           fi

@@ -1,0 +1,46 @@
+name: Build Windows EXE
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout olcbox
+        uses: actions/checkout@v4
+        with:
+          path: olcbox
+
+      - name: Clone olcrtc fork
+        shell: pwsh
+        run: |
+          git clone https://codeberg.org/gothex/olcrtc-for-olcbox.git olcrtc
+
+      - name: Setup JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          architecture: x64
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: 'stable'
+
+      - name: Build EXE
+        shell: pwsh
+        working-directory: olcbox
+        run: |
+          $env:OLCRTC_REPO="${{ github.workspace }}\olcrtc"
+          .\gradlew.bat :desktopApp:packageReleaseExe --stacktrace
+
+      - name: Upload EXE
+        uses: actions/upload-artifact@v4
+        with:
+          name: Turnbox-windows-amd64-exe
+          path: olcbox/desktopApp/build/compose/binaries/main-release/exe/*.exe

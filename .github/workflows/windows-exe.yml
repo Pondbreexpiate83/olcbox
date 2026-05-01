@@ -23,7 +23,7 @@ jobs:
       - name: Clone olcrtc fork
         shell: pwsh
         run: |
-          git clone --branch transport/videochannel --single-branch https://codeberg.org/gothex/olcrtc-for-olcbox.git olcrtc
+          git clone --recurse-submodules --branch transport/videochannel --single-branch https://codeberg.org/gothex/olcrtc-for-olcbox.git olcrtc
 
       - name: Setup JDK
         uses: actions/setup-java@v4
@@ -36,6 +36,7 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: 'stable'
+          cache-dependency-path: olcrtc/go.sum
 
       - name: Build Windows EXE
         shell: pwsh
@@ -71,7 +72,7 @@ jobs:
 
       - name: Clone olcrtc fork
         run: |
-          git clone --branch transport/videochannel --single-branch https://codeberg.org/gothex/olcrtc-for-olcbox.git olcrtc
+          git clone --recurse-submodules --branch transport/videochannel --single-branch https://codeberg.org/gothex/olcrtc-for-olcbox.git olcrtc
 
       - name: Setup JDK
         uses: actions/setup-java@v4
@@ -83,6 +84,7 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: 'stable'
+          cache-dependency-path: olcrtc/go.sum
 
       - name: Build macOS DMG
         working-directory: olcbox
@@ -115,7 +117,7 @@ jobs:
 
       - name: Clone olcrtc fork
         run: |
-          git clone --branch transport/videochannel --single-branch https://codeberg.org/gothex/olcrtc-for-olcbox.git olcrtc
+          git clone --recurse-submodules --branch transport/videochannel --single-branch https://codeberg.org/gothex/olcrtc-for-olcbox.git olcrtc
 
       - name: Install Linux packaging deps
         run: |
@@ -132,6 +134,7 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: 'stable'
+          cache-dependency-path: olcrtc/go.sum
 
       - name: Build Linux DEB
         working-directory: olcbox
@@ -171,7 +174,7 @@ jobs:
 
       - name: Clone olcrtc fork
         run: |
-          git clone --branch transport/videochannel --single-branch https://codeberg.org/gothex/olcrtc-for-olcbox.git olcrtc
+          git clone --recurse-submodules --branch transport/videochannel --single-branch https://codeberg.org/gothex/olcrtc-for-olcbox.git olcrtc
 
       - name: Setup JDK
         uses: actions/setup-java@v4
@@ -183,6 +186,7 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: 'stable'
+          cache-dependency-path: olcrtc/go.sum
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3

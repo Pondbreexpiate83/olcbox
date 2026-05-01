@@ -341,6 +341,7 @@ class TurnboxVpnService : VpnService() {
         upstream: Network,
         setErrorOnFailure: Boolean
     ): Boolean {
+        val keepProcessBound = shouldKeepProcessBound(upstream)
         return try {
             installMobileCallbacks()
             val socksPort = localSocksPort
@@ -364,6 +365,9 @@ class TurnboxVpnService : VpnService() {
             )
             Mobile.waitReady(MOBILE_READY_TIMEOUT_MS)
             addLog("olcRTC ready on 127.0.0.1:$socksPort")
+            if (keepProcessBound) {
+                addLog("Keeping olcRTC bound to ${getNetName(upstream)}")
+            }
             true
         } catch (e: Exception) {
             addLog("olcRTC start failed: ${e.message}")
@@ -375,7 +379,9 @@ class TurnboxVpnService : VpnService() {
             }
             false
         } finally {
-            unbindProcessFromNetwork()
+            if (!keepProcessBound || !Mobile.isRunning()) {
+                unbindProcessFromNetwork()
+            }
         }
     }
 
@@ -564,6 +570,9 @@ class TurnboxVpnService : VpnService() {
         } else {
             stopMobile()
         }
+        if (closeTun) {
+            unbindProcessFromNetwork()
+        }
     }
 
     private fun stopTun2socks() {
@@ -737,6 +746,11 @@ class TurnboxVpnService : VpnService() {
         caps.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) -> "Mobile"
         caps.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET) -> "Ethernet"
         else -> "Other"
+    }
+
+    private fun shouldKeepProcessBound(network: Network): Boolean {
+        val caps = connectivityManager.getNetworkCapabilities(network) ?: return false
+        return caps.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR)
     }
 
     private fun startForeground(statusText: String = "Protecting your connection") {

@@ -89,11 +89,19 @@ val buildOlcRtcLinuxArm64 = registerOlcRtcBuildTask(
     outputName = "olcrtc-linux-arm64"
 )
 
+val copyOlcRtcDataAssets = tasks.register<Copy>("copyOlcRtcDataAssets") {
+    from(olcrtcRepo.map { file(it).resolve("data") }) {
+        include("names", "surnames")
+    }
+    into(generatedNativeResources.map { it.dir("olcrtc-data") })
+}
+
 val desktopNativeAssetTasks = mutableListOf<Any>(
     buildOlcRtcDarwinArm64,
     buildOlcRtcWindowsAmd64,
     buildOlcRtcLinuxAmd64,
-    buildOlcRtcLinuxArm64
+    buildOlcRtcLinuxArm64,
+    copyOlcRtcDataAssets
 )
 
 if (currentBuildOs.isLinux) {

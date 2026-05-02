@@ -235,7 +235,8 @@ class DesktopVpnManager private constructor(
     ): Process {
         val config = location.normalized()
         val provider = OlcRtcCommand.desktopProviderArg(config.bypassProvider)
-        val command = OlcRtcCommand(binary, location, PacServer.LOCAL_SOCKS_HOST, socksPort).args()
+        val dataDir = DesktopNativeAssets.resolveOlcRtcDataDir()
+        val command = OlcRtcCommand(binary, location, PacServer.LOCAL_SOCKS_HOST, socksPort, dataDir).args()
         addLog("Starting olcRTC provider=$provider, transport=${config.transport}, room=${config.id}, port=$socksPort")
         if (privileged) {
             addLog("Linux TUN mode starts olcRTC with elevated privileges to bypass the TUN route")

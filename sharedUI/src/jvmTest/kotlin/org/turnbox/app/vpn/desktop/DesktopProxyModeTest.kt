@@ -51,10 +51,12 @@ class DesktopProxyModeTest {
                 key = "b".repeat(64),
                 bypassProvider = LocationConfig.PROVIDER_WB_STREAM,
                 transport = LocationConfig.TRANSPORT_DATACHANNEL
-            )
+            ),
+            dataDir = Path.of("/tmp/turnbox-data")
         ).args()
 
         assertContains(command, LocationConfig.TRANSPORT_DATACHANNEL)
+        assertEquals("/tmp/turnbox-data", command[command.indexOf("-data") + 1])
     }
 
     @Test

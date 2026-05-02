@@ -7,12 +7,13 @@ internal data class OlcRtcCommand(
     val binary: Path,
     val location: LocationConfig,
     val socksHost: String = PacServer.LOCAL_SOCKS_HOST,
-    val socksPort: Int = PacServer.LOCAL_SOCKS_PORT
+    val socksPort: Int = PacServer.LOCAL_SOCKS_PORT,
+    val dataDir: Path? = null
 ) {
     fun args(): List<String> {
         val config = location.normalized()
         val provider = desktopProviderArg(config.bypassProvider)
-        return listOf(
+        return listOfNotNull(
             binary.toString(),
             "-mode", "cnc",
             "-link", "direct",
@@ -25,6 +26,9 @@ internal data class OlcRtcCommand(
             "-dns", "1.1.1.1:53",
             "-vp8-fps", config.vp8Fps.toString(),
             "-vp8-batch", config.vp8Batch.toString()
+        ) + listOfNotNull(
+            dataDir?.let { "-data" },
+            dataDir?.toString()
         )
     }
 

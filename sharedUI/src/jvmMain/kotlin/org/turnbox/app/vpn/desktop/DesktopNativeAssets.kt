@@ -18,6 +18,14 @@ internal object DesktopNativeAssets {
         )
     }
 
+    fun resolveOlcRtcDataDir(): Path {
+        val target = DesktopPaths.appDataDir().resolve("olcrtc-data")
+        Files.createDirectories(target)
+        copyDataFile("names", target)
+        copyDataFile("surnames", target)
+        return target
+    }
+
     fun resolveHevSocks5TunnelBinary(): Path {
         val fileName = hevSocks5TunnelFileName()
         return resolveBinary(
@@ -51,6 +59,25 @@ internal object DesktopNativeAssets {
         }
 
         error("Bundled native binary is missing: $resourceName")
+    }
+
+    private fun copyDataFile(fileName: String, targetDir: Path) {
+        val target = targetDir.resolve(fileName)
+        val resourceName = "olcrtc-data/$fileName"
+        val resource = javaClass.classLoader.getResourceAsStream(resourceName)
+        if (resource != null) {
+            resource.use {
+                Files.copy(it, target, StandardCopyOption.REPLACE_EXISTING)
+            }
+            return
+        }
+
+        olcRtcDataSourceCandidates(fileName).firstOrNull { it.exists() }?.let {
+            Files.copy(it, target, StandardCopyOption.REPLACE_EXISTING)
+            return
+        }
+
+        error("Bundled olcRTC data file is missing: $resourceName")
     }
 
     fun olcRtcFileName(): String {
@@ -91,6 +118,14 @@ internal object DesktopNativeAssets {
                 repoCandidates(repoOrBinary, fileName)
             }
         } + repoCandidates(defaultRepo, fileName)
+    }
+
+    private fun olcRtcDataSourceCandidates(fileName: String): List<Path> {
+        val explicitRepo = System.getenv("OLCRTC_REPO")?.takeIf { it.isNotBlank() }?.let { Path(it) }
+        val defaultRepo = Path("..").resolve("olcrtc-original")
+        return listOfNotNull(explicitRepo, defaultRepo).map { repo ->
+            repo.resolve("data").resolve(fileName)
+        }
     }
 
     private fun repoCandidates(repo: Path, fileName: String): List<Path> {

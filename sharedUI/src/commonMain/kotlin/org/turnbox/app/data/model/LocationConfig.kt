@@ -112,7 +112,7 @@ data class LocationConfig(
 
         fun sanitizeVp8Fps(value: Int): Int = value.coerceIn(1, 120)
 
-        fun sanitizeVp8Batch(value: Int): Int = value.coerceIn(1, 32)
+        fun sanitizeVp8Batch(value: Int): Int = value.coerceIn(1, 64)
     }
 }
 

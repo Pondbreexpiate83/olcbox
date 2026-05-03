@@ -170,8 +170,8 @@ fun AndroidMainScreen(
                     vpnManager.selectConnectionMode(mode)
                 }
             },
-            onProxyPasswordSaved = { password ->
-                vpnManager.updateProxyPassword(password)
+            onProxySettingsSaved = { username, password ->
+                vpnManager.updateProxySettings(username, password)
                 if (homeState.isVpnConnected && connectionMode == AndroidConnectionMode.Proxy) {
                     viewModel.restartVpnIfRunning()
                 }

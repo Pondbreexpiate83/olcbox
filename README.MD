@@ -78,7 +78,7 @@ Android native libraries are built by Gradle/NDK from `androidApp/src/main/jni`.
 Configured ABIs are `arm64-v8a` and `x86_64`.
 
 Android mode selector is available from application settings in the top bar. TUN mode routes device traffic through the VPN interface. Proxy mode starts the local SOCKS5 endpoint without creating a VPN interface.
-Android proxy mode exposes authenticated SOCKS5 on `127.0.0.1:10808` with user `turnbox`; a random password is generated on first launch and can be changed from application settings.
+Android proxy mode exposes authenticated SOCKS5 on `127.0.0.1:10808`; random username and password values are generated on first launch and can be changed from application settings.
 
 ## Desktop Development
 

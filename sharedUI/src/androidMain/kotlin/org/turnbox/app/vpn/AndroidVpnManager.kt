@@ -23,6 +23,7 @@ import org.turnbox.app.vpn.data.KEY_ANDROID_SPLIT_TUNNEL_MODE
 import org.turnbox.app.vpn.data.KEY_ANDROID_SPLIT_TUNNEL_PROXY_APPS
 import org.turnbox.app.vpn.data.KEY_ANDROID_SOCKS_PASSWORD
 import org.turnbox.app.vpn.data.KEY_ANDROID_SOCKS_USERNAME
+import org.turnbox.app.vpn.data.KEY_ANDROID_SOCKS_USERNAME_INITIALIZED
 import org.turnbox.app.vpn.data.vpnPrefDataStore
 import org.turnbox.app.vpn.service.TurnboxVpnActions
 import org.turnbox.app.vpn.service.TurnboxVpnState
@@ -51,8 +52,7 @@ class AndroidVpnManager(private val context: Context) : VpnManager {
                 .map { preferences ->
                     val mode = AndroidConnectionMode.fromValue(preferences[KEY_ANDROID_CONNECTION_MODE])
                     val proxy = AndroidSocksProxySettings(
-                        username = preferences[KEY_ANDROID_SOCKS_USERNAME]
-                            ?: AndroidSocksProxySettings.DEFAULT_USERNAME,
+                        username = preferences[KEY_ANDROID_SOCKS_USERNAME].orEmpty(),
                         password = preferences[KEY_ANDROID_SOCKS_PASSWORD].orEmpty()
                     )
                     val splitTunnel = AndroidSplitTunnelSettings(
@@ -88,16 +88,26 @@ class AndroidVpnManager(private val context: Context) : VpnManager {
         }
     }
 
-    fun updateProxyPassword(password: String) {
+    fun updateProxySettings(username: String, password: String) {
+        val sanitizedUsername = username.trim().take(MAX_SOCKS_USERNAME_LENGTH)
+            .ifBlank { generateProxyUsername() }
         val sanitized = password.trim().take(MAX_SOCKS_PASSWORD_LENGTH)
             .ifBlank { generateProxyPassword() }
-        _proxySettings.value = _proxySettings.value.copy(password = sanitized)
+        _proxySettings.value = _proxySettings.value.copy(
+            username = sanitizedUsername,
+            password = sanitized
+        )
         scope.launch {
             appContext.vpnPrefDataStore.edit { preferences ->
-                preferences[KEY_ANDROID_SOCKS_USERNAME] = AndroidSocksProxySettings.DEFAULT_USERNAME
+                preferences[KEY_ANDROID_SOCKS_USERNAME] = sanitizedUsername
+                preferences[KEY_ANDROID_SOCKS_USERNAME_INITIALIZED] = true
                 preferences[KEY_ANDROID_SOCKS_PASSWORD] = sanitized
             }
         }
+    }
+
+    fun updateProxyPassword(password: String) {
+        updateProxySettings(_proxySettings.value.username, password)
     }
 
     fun regenerateProxyPassword() {
@@ -187,9 +197,12 @@ class AndroidVpnManager(private val context: Context) : VpnManager {
 
     private suspend fun ensureProxySettings() {
         appContext.vpnPrefDataStore.edit { preferences ->
-            if (preferences[KEY_ANDROID_SOCKS_USERNAME].isNullOrBlank()) {
-                preferences[KEY_ANDROID_SOCKS_USERNAME] = AndroidSocksProxySettings.DEFAULT_USERNAME
+            val username = preferences[KEY_ANDROID_SOCKS_USERNAME]
+            val usernameInitialized = preferences[KEY_ANDROID_SOCKS_USERNAME_INITIALIZED] == true
+            if (username.isNullOrBlank() || (!usernameInitialized && username == LEGACY_DEFAULT_USERNAME)) {
+                preferences[KEY_ANDROID_SOCKS_USERNAME] = generateProxyUsername()
             }
+            preferences[KEY_ANDROID_SOCKS_USERNAME_INITIALIZED] = true
             if (preferences[KEY_ANDROID_SOCKS_PASSWORD].isNullOrBlank()) {
                 preferences[KEY_ANDROID_SOCKS_PASSWORD] = generateProxyPassword()
             }
@@ -230,13 +243,27 @@ class AndroidVpnManager(private val context: Context) : VpnManager {
         }
     }
 
+    private fun generateProxyUsername(): String {
+        return buildString(PROXY_USERNAME_PREFIX.length + PROXY_USERNAME_RANDOM_LENGTH) {
+            append(PROXY_USERNAME_PREFIX)
+            repeat(PROXY_USERNAME_RANDOM_LENGTH) {
+                append(PROXY_USERNAME_ALPHABET[random.nextInt(PROXY_USERNAME_ALPHABET.length)])
+            }
+        }
+    }
+
     private fun Set<String>.toggle(value: String): Set<String> {
         return if (value in this) this - value else this + value
     }
 
     private companion object {
+        const val LEGACY_DEFAULT_USERNAME = "turnbox"
+        const val PROXY_USERNAME_PREFIX = "turnbox"
+        const val PROXY_USERNAME_RANDOM_LENGTH = 8
+        const val MAX_SOCKS_USERNAME_LENGTH = 64
         const val PROXY_PASSWORD_LENGTH = 24
         const val MAX_SOCKS_PASSWORD_LENGTH = 64
+        const val PROXY_USERNAME_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789"
         const val PROXY_PASSWORD_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789"
         val random = SecureRandom()
     }

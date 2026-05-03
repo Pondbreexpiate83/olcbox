@@ -85,7 +85,7 @@ class TurnboxVpnService : VpnService() {
     private var localSocksPort = LOCAL_SOCKS_PORT_BASE
     private var nextSocksPort = LOCAL_SOCKS_PORT_BASE
     private var connectionMode = AndroidConnectionMode.Tun
-    private var socksUsername = AndroidSocksProxySettings.DEFAULT_USERNAME
+    private var socksUsername = ""
     private var socksPassword = ""
     private var splitTunnelMode = AndroidSplitTunnelMode.AllApps
     private var splitTunnelProxyApps = emptySet<String>()
@@ -181,7 +181,7 @@ class TurnboxVpnService : VpnService() {
         )
         socksUsername = intent.getStringExtra(TurnboxVpnActions.EXTRA_SOCKS_USERNAME)
             ?.takeIf { it.isNotBlank() }
-            ?: AndroidSocksProxySettings.DEFAULT_USERNAME
+            .orEmpty()
         socksPassword = intent.getStringExtra(TurnboxVpnActions.EXTRA_SOCKS_PASSWORD).orEmpty()
         splitTunnelMode = AndroidSplitTunnelMode.fromValue(
             intent.getStringExtra(TurnboxVpnActions.EXTRA_SPLIT_TUNNEL_MODE)
@@ -718,6 +718,12 @@ class TurnboxVpnService : VpnService() {
     }
 
     private fun startAuthenticatedSocksProxy(): Boolean {
+        if (socksUsername.isBlank()) {
+            addLog("SOCKS proxy username is missing")
+            setStatus(VpnStatus.Error("SOCKS proxy username is missing"))
+            updateNotification("Proxy failed")
+            return false
+        }
         if (socksPassword.isBlank()) {
             addLog("SOCKS proxy password is missing")
             setStatus(VpnStatus.Error("SOCKS proxy password is missing"))

@@ -581,10 +581,18 @@ class OlcboxVpnService : VpnService() {
             resetRtcHealthState()
 
             waitForSocksPortReleased(targetSocksPort, SOCKS_RELEASE_QUICK_TIMEOUT_MS)
+            if (Mobile.isRunning()) {
+                addLog("Waiting for previous olcRTC runtime to stop")
+                waitForMobileStopped()
+            }
             if (isLocalSocksPortOpen(targetSocksPort)) {
                 throw IllegalStateException("SOCKS port $targetSocksPort is still in use")
             }
             waitForJitsiRoomCleanup(config.bypassProvider)
+            if (Mobile.isRunning()) {
+                addLog("olcRTC runtime is still active after Jitsi cleanup wait")
+                waitForMobileStopped()
+            }
             bindProcessToNetwork(upstream, "Bound to ${getNetName(upstream)}")
             configureMobileTransport(config)
             addLog(
@@ -1022,7 +1030,17 @@ class OlcboxVpnService : VpnService() {
     private suspend fun stopMobileAndWait() {
         val socksPort = socksListenPort
         stopMobile()
+        waitForMobileStopped()
         waitForSocksPortReleased(socksPort)
+    }
+
+    private suspend fun waitForMobileStopped(timeoutMs: Long = SOCKS_RELEASE_TIMEOUT_MS) {
+        val deadline = System.currentTimeMillis() + timeoutMs
+        while (System.currentTimeMillis() < deadline) {
+            if (!Mobile.isRunning()) return
+            delay(SOCKS_RELEASE_POLL_MS)
+        }
+        addLog("olcRTC runtime is still running after stop")
     }
 
     private suspend fun waitForSocksPortReleased(

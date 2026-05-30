@@ -374,7 +374,7 @@ jobs:
           export ANDROID_NDK_ROOT="${ANDROID_NDK_HOME}"
           gomobile init
 
-      - name: Configure Android release signing
+      - name: Configure Android signing mode
         working-directory: olcbox
         run: |
           if [ -n "${ANDROID_RELEASE_KEYSTORE_BASE64}" ] &&
@@ -388,42 +388,43 @@ jobs:
           keyAlias=${ANDROID_RELEASE_KEY_ALIAS}
           keyPassword=${ANDROID_RELEASE_KEY_PASSWORD}
           EOF
+            echo "apk_task=assembleRelease" >> "$GITHUB_ENV"
+            echo "apk_dir=release" >> "$GITHUB_ENV"
+            echo "apk_suffix=android-release" >> "$GITHUB_ENV"
           else
-            echo "Android production APK requires signing secrets:"
-            echo "ANDROID_RELEASE_KEYSTORE_BASE64, ANDROID_RELEASE_STORE_PASSWORD, ANDROID_RELEASE_KEY_ALIAS, ANDROID_RELEASE_KEY_PASSWORD"
-            exit 1
+            echo "Signing secrets are not configured in fork; building debug APK instead."
+            echo "apk_task=assembleDebug" >> "$GITHUB_ENV"
+            echo "apk_dir=debug" >> "$GITHUB_ENV"
+            echo "apk_suffix=android-debug" >> "$GITHUB_ENV"
           fi
 
-      - name: Build production APK
+      - name: Build Android APK
         working-directory: olcbox
         run: |
           export OLCRTC_REPO="${{ github.workspace }}/olcrtc"
           export ANDROID_NDK_HOME="${ANDROID_HOME}/ndk/${ANDROID_NDK_VERSION}"
           export ANDROID_NDK_ROOT="${ANDROID_NDK_HOME}"
-          ./gradlew -Polcbox.version="${OLCBOX_VERSION}" -Polcbox.versionCode="${OLCBOX_VERSION_CODE}" :sharedUI:jvmTest :androidApp:assembleRelease --stacktrace
+          ./gradlew -Polcbox.version="${OLCBOX_VERSION}" -Polcbox.versionCode="${OLCBOX_VERSION_CODE}" :sharedUI:jvmTest :androidApp:${apk_task} --stacktrace
 
-      - name: Prepare universal Android release asset
+      - name: Prepare Android APK asset
         working-directory: olcbox
         run: |
           mkdir -p dist
-          release_apk="$(find androidApp/build/outputs/apk/release -maxdepth 1 -type f -name '*.apk' | sort | head -n 1)"
-          if [ -z "${release_apk}" ]; then
-            echo "Android release APK was not found" >&2
+          apk="$(find androidApp/build/outputs/apk/${apk_dir} -maxdepth 1 -type f -name '*.apk' | sort | head -n 1)"
+          if [ -z "${apk}" ]; then
+            echo "Android APK was not found in ${apk_dir}" >&2
             exit 1
           fi
-          cp "${release_apk}" "dist/Olcbox-${OLCBOX_VERSION}-android-release.apk"
+          cp "${apk}" "dist/Olcbox-${OLCBOX_VERSION}-${apk_suffix}.apk"
 
-      - name: Build armeabi-v7a production APK
+      - name: Prepare optional armeabi-v7a Android release asset
+        if: env.apk_task == 'assembleRelease'
         working-directory: olcbox
         run: |
           export OLCRTC_REPO="${{ github.workspace }}/olcrtc"
           export ANDROID_NDK_HOME="${ANDROID_HOME}/ndk/${ANDROID_NDK_VERSION}"
           export ANDROID_NDK_ROOT="${ANDROID_NDK_HOME}"
           ./gradlew -Polcbox.version="${OLCBOX_VERSION}" -Polcbox.versionCode="${OLCBOX_VERSION_CODE}" -Polcbox.android.abiFilters=armeabi-v7a :androidApp:clean :androidApp:assembleRelease --stacktrace
-
-      - name: Prepare armeabi-v7a Android release asset
-        working-directory: olcbox
-        run: |
           release_apk="$(find androidApp/build/outputs/apk/release -maxdepth 1 -type f -name '*.apk' | sort | head -n 1)"
           if [ -z "${release_apk}" ]; then
             echo "Android armeabi-v7a release APK was not found" >&2

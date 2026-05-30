@@ -438,7 +438,9 @@ jobs:
           name: Olcbox-android-apks
           path: |
             olcbox/dist/Olcbox-*-android-release.apk
+            olcbox/dist/Olcbox-*-android-debug.apk
             olcbox/dist/Olcbox-*-android-armeabi-v7a-release.apk
+            olcbox/dist/Olcbox-*-android-armeabi-v7a-debug.apk
 
   build-ios:
     needs: release_version

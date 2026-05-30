@@ -15,8 +15,8 @@ env:
   OLCBOX_OLCRTC_REF: "udp-associate-fixes"
   # The alananisimov/olcbox workflow was recreated after 1.0.69, so
   # github.run_number restarted. Run #6 must publish Android versionCode 70.
-  OLCBOX_RELEASE_RUN_NUMBER_BASE: "5"
-  OLCBOX_RELEASE_PATCH_BASE: "69"
+  OLCBOX_RELEASE_RUN_NUMBER_BASE: "0"
+  OLCBOX_RELEASE_PATCH_BASE: "0"
 
 jobs:
   release_version:
